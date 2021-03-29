@@ -1,0 +1,11 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Reference Include="System.Xml.XDocument.dll" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+
+  <Target Name="Build">
+    <Csc TargetType="exe" Sources="@(Compile)" References="@(Reference)"
+         OutputAssembly="ManifestFileGenerator.exe" />
+  </Target>
+</Project>
