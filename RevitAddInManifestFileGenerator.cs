@@ -7,24 +7,45 @@ using IO = System.IO;
 using Xml = System.Xml.Linq;
 
 namespace RevitUtils {
+  enum AddInElementUsage {
+    Required, Optional
+  }
+  
+  [AttributeUsage(AttributeTargets.Property)]
+  class AddInElementAttribute : Attribute {
+    public AddInElementAttribute(AddInElementUsage usage) {
+      _usage = usage;
+    }
+
+    public AddInElementUsage GetUsage() { return _usage; }
+
+    AddInElementUsage _usage;
+  }
+      
   class AddInElements {
-    public string Type { get; set; }
-    public string Assembly { get; set; }
-    public string AddInId { get; set; }
-    public string FullClassName { get; set; }
-    public string VendorId { get; set; }
-    public string VendorDescription { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
-    public string VisibilityMode { get; set; }
-    public string Discipline { get; set; }
-    public string AvailabilityClassName { get; set; }
-    public string LargeImage { get; set; }
-    public string SmallImage { get; set; }
-    public string LongDescription { get; set; }
-    public string ToolTipImage { get; set; }
-    public string LanguageType { get; set; }
-    public string AllowLoadIntoExistingSession { get; set; }
+    [AddInElement(AddInElementUsage.Required)]
+    public String Type { get; set; }
+    [AddInElement(AddInElementUsage.Required)]
+    public String Assembly { get; set; }
+    [AddInElement(AddInElementUsage.Required)]
+    public String AddInId { get; set; }
+    [AddInElement(AddInElementUsage.Required)]
+    public String FullClassName { get; set; }
+    [AddInElement(AddInElementUsage.Required)]
+    public String VendorId { get; set; }
+    public String VendorDescription { get; set; }
+    [AddInElement(AddInElementUsage.Required)]
+    public String Name { get; set; }
+    public String Description { get; set; }
+    public String VisibilityMode { get; set; }
+    public String Discipline { get; set; }
+    public String AvailabilityClassName { get; set; }
+    public String LargeImage { get; set; }
+    public String SmallImage { get; set; }
+    public String LongDescription { get; set; }
+    public String ToolTipImage { get; set; }
+    public String LanguageType { get; set; }
+    public String AllowLoadIntoExistingSession { get; set; }
   }
   
   class Program {
@@ -34,29 +55,55 @@ namespace RevitUtils {
     }
 
     static AddInElements PromptForData() {
-      AddInElements data = new AddInElements { AddInId = (Guid.NewGuid()).ToString() };
+      AddInElements data = new AddInElements {
+        AddInId = (Guid.NewGuid()).ToString()
+      };
       Type type = data.GetType();
       PropertyInfo[] props = type.GetProperties();
       foreach (PropertyInfo prop in props) {
         String value = prop.GetValue(data) as String;
         if (null == value) {
-          Console.WriteLine("Please enter the value of {0} or q to exit", prop.Name);
-          value = Console.ReadLine();
-          if ("q" == value) break;
-          else if (value.Length > 0) prop.SetValue(data, value);
+          while (true) {
+            Console.WriteLine("Please enter the value of {0} or q to exit",
+                              prop.Name);
+            value = Console.ReadLine();
+            if (("q" == value || String.IsNullOrEmpty(value))
+                && IsValueRequired(prop)) {
+              Console.WriteLine("THE VALUE IS REQUIRED.");
+              continue;
+            } else if ("q" == value) {
+              return data;
+            } else if (value.Length > 0) {
+              prop.SetValue(data, value);
+              break;
+            }
+          }
         }
       }
       return data;
     }
 
+    static Boolean IsValueRequired(PropertyInfo propInfo) {
+      AddInElementAttribute addInAttr = Attribute.GetCustomAttribute(
+          propInfo, typeof(AddInElementAttribute), false)
+          as AddInElementAttribute;
+      Boolean isRequired = false;
+      if (addInAttr != null) {
+        isRequired = AddInElementUsage.Required == addInAttr.GetUsage();
+      }
+      return isRequired;
+    }
+
     static void GenerateManifestFile(AddInElements data) {
       Xml.XElement addin = new Xml.XElement(
-          "Addin", new Xml.XAttribute("Type", data.Type));
+          "AddIn", new Xml.XAttribute("Type", data.Type));
       Type type = data.GetType();
       PropertyInfo[] props = type.GetProperties();
       foreach (PropertyInfo prop in props) {
-        object value = prop.GetValue(data);
-        if (null != value) addin.SetElementValue(prop.Name, (string)value);
+        String value = prop.GetValue(data) as String;
+        if (!String.IsNullOrEmpty(value)) {
+          addin.SetElementValue(prop.Name, value);
+        }
       }
       Xml.XElement xmlTree = new Xml.XElement("RevitAddIns", addin);
       IO.StreamWriter sw = IO.File.CreateText(
